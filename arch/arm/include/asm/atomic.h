@@ -61,6 +61,7 @@ static inline int atomic_add_return(int i, atomic_t *v)
 	int result;
 
 	smp_mb();
+	prefetchw(&v->counter);
 
 	__asm__ __volatile__("@ atomic_add_return\n"
 "1:	ldrex	%0, [%3]\n"
@@ -100,6 +101,7 @@ static inline int atomic_sub_return(int i, atomic_t *v)
 	int result;
 
 	smp_mb();
+	prefetchw(&v->counter);
 
 	__asm__ __volatile__("@ atomic_sub_return\n"
 "1:	ldrex	%0, [%3]\n"
@@ -122,6 +124,7 @@ static inline int atomic_cmpxchg(atomic_t *ptr, int old, int new)
 	unsigned long res;
 
 	smp_mb();
+	prefetchw(&ptr->counter);
 
 	do {
 		__asm__ __volatile__("@ atomic_cmpxchg\n"
@@ -327,6 +330,7 @@ static inline long long atomic64_add_return(long long i, atomic64_t *v)
 	unsigned long tmp;
 
 	smp_mb();
+	prefetchw(&v->counter);
 
 	__asm__ __volatile__("@ atomic64_add_return\n"
 "1:	ldrexd	%0, %H0, [%3]\n"
@@ -368,6 +372,7 @@ static inline long long atomic64_sub_return(long long i, atomic64_t *v)
 	unsigned long tmp;
 
 	smp_mb();
+	prefetchw(&v->counter);
 
 	__asm__ __volatile__("@ atomic64_sub_return\n"
 "1:	ldrexd	%0, %H0, [%3]\n"
@@ -392,6 +397,7 @@ static inline long long atomic64_cmpxchg(atomic64_t *ptr, long long old,
 	unsigned long res;
 
 	smp_mb();
+	prefetchw(&ptr->counter);
 
 	do {
 		__asm__ __volatile__("@ atomic64_cmpxchg\n"
@@ -416,6 +422,7 @@ static inline long long atomic64_xchg(atomic64_t *ptr, long long new)
 	unsigned long tmp;
 
 	smp_mb();
+	prefetchw(&ptr->counter);
 
 	__asm__ __volatile__("@ atomic64_xchg\n"
 "1:	ldrexd	%0, %H0, [%3]\n"
@@ -437,6 +444,7 @@ static inline long long atomic64_dec_if_positive(atomic64_t *v)
 	unsigned long tmp;
 
 	smp_mb();
+	prefetchw(&v->counter);
 
 	__asm__ __volatile__("@ atomic64_dec_if_positive\n"
 "1:	ldrexd	%0, %H0, [%3]\n"
@@ -464,6 +472,7 @@ static inline int atomic64_add_unless(atomic64_t *v, long long a, long long u)
 	int ret = 1;
 
 	smp_mb();
+	prefetchw(&v->counter);
 
 	__asm__ __volatile__("@ atomic64_add_unless\n"
 "1:	ldrexd	%0, %H0, [%4]\n"

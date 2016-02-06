@@ -71,12 +71,12 @@ static short lowmem_adj[6] = {
 };
 static int lowmem_adj_size = 6;
 static int lowmem_minfree[6] = {
-	 3 *  512,	/* Foreground App: 	6 MB	*/
-	 2 * 1024,	/* Visible App: 	8 MB	*/
-	 4 * 1024,	/* Secondary Server: 	16 MB	*/
-	16 * 1024,	/* Hidden App: 		64 MB	*/
-	28 * 1024,	/* Content Provider: 	112 MB	*/
-	32 * 1024,	/* Empty App: 		128 MB	*/
+	 4 * 1024,	/* Foreground App: 	16 MB	*/
+	 8 * 1024,	/* Visible App: 	32 MB	*/
+	16 * 1024,	/* Secondary Server: 	65 MB	*/
+	28 * 1024,	/* Hidden App: 		114 MB	*/
+	45 * 1024,	/* Content Provider: 	184 MB	*/
+	50 * 1024,	/* Empty App: 		204 MB	*/
 };
 static int lowmem_minfree_size = 6;
 static int lmk_fast_run = 1;

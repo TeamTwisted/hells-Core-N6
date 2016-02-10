@@ -41,10 +41,6 @@
 
 #ifdef CONFIG_RANDOM32_SELFTEST
 static void __init prandom_state_selftest(void);
-#else
-static inline void prandom_state_selftest(void)
-{
-}
 #endif
 
 static DEFINE_PER_CPU(struct rnd_state, net_rand_state);
@@ -58,7 +54,8 @@ static DEFINE_PER_CPU(struct rnd_state, net_rand_state);
  */
 u32 prandom_u32_state(struct rnd_state *state)
 {
-#define TAUSWORTHE(s, a, b, c, d) ((s & c) << d) ^ (((s << a) ^ s) >> b)
+#define TAUSWORTHE(s,a,b,c,d) ((s&c)<<d) ^ (((s <<a) ^ s)>>b)
+
 	state->s1 = TAUSWORTHE(state->s1,  6U, 13U, 4294967294U, 18U);
 	state->s2 = TAUSWORTHE(state->s2,  2U, 27U, 4294967288U,  2U);
 	state->s3 = TAUSWORTHE(state->s3, 13U, 21U, 4294967280U,  7U);
@@ -147,24 +144,21 @@ static void prandom_warmup(struct rnd_state *state)
 	prandom_u32_state(state);
 }
 
-static u32 __extract_hwseed(void)
+static void prandom_seed_very_weak(struct rnd_state *state, u32 seed)
 {
-	unsigned int val = 0;
-
-	(void)(arch_get_random_int(&val));
-
-	return val;
-}
-
-static void prandom_seed_early(struct rnd_state *state, u32 seed,
-			       bool mix_with_hwseed)
-{
-#define LCG(x)	 ((x) * 69069U)	/* super-duper LCG */
-#define HWSEED() (mix_with_hwseed ? __extract_hwseed() : 0)
-	state->s1 = __seed(HWSEED() ^ LCG(seed),        2U);
-	state->s2 = __seed(HWSEED() ^ LCG(state->s1),   8U);
-	state->s3 = __seed(HWSEED() ^ LCG(state->s2),  16U);
-	state->s4 = __seed(HWSEED() ^ LCG(state->s3), 128U);
+	/* Note: This sort of seeding is ONLY used in test cases and
+	 * during boot at the time from core_initcall until late_initcall
+	 * as we don't have a stronger entropy source available yet.
+	 * After late_initcall, we reseed entire state, we have to (!),
+	 * otherwise an attacker just needs to search 32 bit space to
+	 * probe for our internal 128 bit state if he knows a couple
+	 * of prandom32 outputs!
+	 */
+#define LCG(x)	((x) * 69069U)	/* super-duper LCG */
+	state->s1 = __seed(LCG(seed),        2U);
+	state->s2 = __seed(LCG(state->s1),   8U);
+	state->s3 = __seed(LCG(state->s2),  16U);
+	state->s4 = __seed(LCG(state->s3), 128U);
 }
 
 /**
@@ -180,7 +174,7 @@ void prandom_seed(u32 entropy)
 	 * No locking on the CPUs, but then somewhat random results are, well,
 	 * expected.
 	 */
-	for_each_possible_cpu (i) {
+	for_each_possible_cpu(i) {
 		struct rnd_state *state = &per_cpu(net_rand_state, i);
 
 		state->s1 = __seed(state->s1 ^ entropy, 2U);
@@ -197,13 +191,14 @@ static int __init prandom_init(void)
 {
 	int i;
 
+#ifdef CONFIG_RANDOM32_SELFTEST
 	prandom_state_selftest();
+#endif
 
 	for_each_possible_cpu(i) {
-		struct rnd_state *state = &per_cpu(net_rand_state,i);
-		u32 weak_seed = (i + jiffies) ^ random_get_entropy();
+		struct rnd_state *state = &per_cpu(net_rand_state, i);
 
-		prandom_seed_early(state, weak_seed, true);
+		prandom_seed_very_weak(state, (i + jiffies) ^ random_get_entropy());
 		prandom_warmup(state);
 	}
 
@@ -212,7 +207,6 @@ static int __init prandom_init(void)
 core_initcall(prandom_init);
 
 static void __prandom_timer(unsigned long dontcare);
-
 static DEFINE_TIMER(seed_timer, __prandom_timer, 0, 0);
 
 static void __prandom_timer(unsigned long dontcare)
@@ -220,11 +214,11 @@ static void __prandom_timer(unsigned long dontcare)
 	u32 entropy;
 	unsigned long expires;
 
-	erandom_get_random_bytes((char *)&entropy, sizeof(entropy));
+	get_random_bytes(&entropy, sizeof(entropy));
 	prandom_seed(entropy);
 
 	/* reseed every ~60 seconds, in [40 .. 80) interval with slack */
-	expires = 40 + prandom_u32_max(40);
+	expires = 40 + (prandom_u32() % 40);
 	seed_timer.expires = jiffies + msecs_to_jiffies(expires * MSEC_PER_SEC);
 
 	add_timer(&seed_timer);
@@ -237,13 +231,30 @@ static void __init __prandom_start_seed_timer(void)
 	add_timer(&seed_timer);
 }
 
+static void prandom_seed_full_state(struct rnd_state __percpu *pcpu_state)
+{
+	int i;
+
+	for_each_possible_cpu(i) {
+		struct rnd_state *state = per_cpu_ptr(pcpu_state, i);
+		u32 seeds[4];
+
+		get_random_bytes(&seeds, sizeof(seeds));
+		state->s1 = __seed(seeds[0],   2U);
+		state->s2 = __seed(seeds[1],   8U);
+		state->s3 = __seed(seeds[2],  16U);
+		state->s4 = __seed(seeds[3], 128U);
+
+		prandom_warmup(state);
+	}
+}
+
 /*
  *	Generate better values after random number generator
  *	is fully initialized.
  */
 static void __prandom_reseed(bool late)
 {
-	int i;
 	unsigned long flags;
 	static bool latch = false;
 	static DEFINE_SPINLOCK(lock);
@@ -265,19 +276,7 @@ static void __prandom_reseed(bool late)
 		goto out;
 
 	latch = true;
-
-	for_each_possible_cpu(i) {
-		struct rnd_state *state = &per_cpu(net_rand_state,i);
-		u32 seeds[4];
-
-		erandom_get_random_bytes((char *)&seeds, sizeof(seeds));
-		state->s1 = __seed(seeds[0],   2U);
-		state->s2 = __seed(seeds[1],   8U);
-		state->s3 = __seed(seeds[2],  16U);
-		state->s4 = __seed(seeds[3], 128U);
-
-		prandom_warmup(state);
-	}
+	prandom_seed_full_state(&net_rand_state);
 out:
 	spin_unlock_irqrestore(&lock, flags);
 }
@@ -422,7 +421,7 @@ static void __init prandom_state_selftest(void)
 	for (i = 0; i < ARRAY_SIZE(test1); i++) {
 		struct rnd_state state;
 
-		prandom_seed_early(&state, test1[i].seed, false);
+		prandom_seed_very_weak(&state, test1[i].seed);
 		prandom_warmup(&state);
 
 		if (test1[i].result != prandom_u32_state(&state))
@@ -437,7 +436,7 @@ static void __init prandom_state_selftest(void)
 	for (i = 0; i < ARRAY_SIZE(test2); i++) {
 		struct rnd_state state;
 
-		prandom_seed_early(&state, test2[i].seed, false);
+		prandom_seed_very_weak(&state, test2[i].seed);
 		prandom_warmup(&state);
 
 		for (j = 0; j < test2[i].iteration - 1; j++)

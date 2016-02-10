@@ -5,7 +5,7 @@
 #error SMP not supported on pre-ARMv6 CPUs
 #endif
 
-#include <asm/processor.h>
+#include <linux/prefetch.h>
 
 extern int msm_krait_need_wfe_fixup;
 
@@ -13,27 +13,18 @@ extern int msm_krait_need_wfe_fixup;
  * sev and wfe are ARMv6K extensions.  Uniprocessor ARMv6 may not have the K
  * extensions, so when running on UP, we have to patch these instructions away.
  */
-#define ALT_SMP(smp, up)					\
-	"9998:	" smp "\n"					\
-	"	.pushsection \".alt.smp.init\", \"a\"\n"	\
-	"	.long	9998b\n"				\
-	"	" up "\n"					\
-	"	.popsection\n"
-
 #ifdef CONFIG_THUMB2_KERNEL
-#define SEV		ALT_SMP("sev.w", "nop.w")
 /*
  * Both instructions given to the ALT_SMP macro need to be the same size, to
  * allow the SMP_ON_UP fixups to function correctly. Hence the explicit encoding
  * specifications.
  */
-#define WFE()		ALT_SMP(		\
+#define WFE()		__ALT_SMP_ASM(		\
 	"wfe.w",				\
 	"nop.w"					\
 )
 #else
-#define SEV		ALT_SMP("sev", "nop")
-#define WFE()		ALT_SMP("wfe", "nop")
+#define WFE(cond)	__ALT_SMP_ASM("wfe" cond, "nop")
 #endif
 
 /*
@@ -62,6 +53,8 @@ extern int msm_krait_need_wfe_fixup;
 #else
 #define WFE_SAFE(fixup, tmp)	"	wfe\n"
 #endif
+
+#define SEV		__ALT_SMP_ASM(WASM(sev), WASM(nop))
 
 static inline void dsb_sev(void)
 {
@@ -98,6 +91,7 @@ static inline void arch_spin_lock(arch_spinlock_t *lock)
 	u32 newval;
 	arch_spinlock_t lockval;
 
+	prefetchw(&lock->slock);
 	__asm__ __volatile__(
 "1:	ldrex	%0, [%3]\n"
 "	add	%1, %0, %4\n"
@@ -170,6 +164,7 @@ static inline int arch_spin_trylock(arch_spinlock_t *lock)
 	unsigned long contended, res;
 	u32 slock;
 
+	prefetchw(&lock->slock);
 	do {
 		__asm__ __volatile__(
 		"	ldrex	%0, [%3]\n"
@@ -222,6 +217,7 @@ static inline void arch_write_lock(arch_rwlock_t *rw)
 {
 	unsigned long tmp, fixup = msm_krait_need_wfe_fixup;
 
+	prefetchw(&rw->lock);
 	__asm__ __volatile__(
 "1:	ldrex	%0, [%2]\n"
 "	teq	%0, #0\n"
@@ -242,6 +238,7 @@ static inline int arch_write_trylock(arch_rwlock_t *rw)
 {
 	unsigned long contended, res;
 
+	prefetchw(&rw->lock);
 	do {
 		__asm__ __volatile__(
 		"	ldrex	%0, [%2]\n"
@@ -275,7 +272,7 @@ static inline void arch_write_unlock(arch_rwlock_t *rw)
 }
 
 /* write_can_lock - would write_trylock() succeed? */
-#define arch_write_can_lock(x)		((x)->lock == 0)
+#define arch_write_can_lock(x)		(ACCESS_ONCE((x)->lock) == 0)
 
 /*
  * Read locks are a bit more hairy:
@@ -293,6 +290,7 @@ static inline void arch_read_lock(arch_rwlock_t *rw)
 {
 	unsigned long tmp, tmp2, fixup = msm_krait_need_wfe_fixup;
 
+	prefetchw(&rw->lock);
 	__asm__ __volatile__(
 "1:	ldrex	%0, [%3]\n"
 "	adds	%0, %0, #1\n"
@@ -315,6 +313,7 @@ static inline void arch_read_unlock(arch_rwlock_t *rw)
 
 	smp_mb();
 
+	prefetchw(&rw->lock);
 	__asm__ __volatile__(
 "1:	ldrex	%0, [%2]\n"
 "	sub	%0, %0, #1\n"
@@ -333,6 +332,7 @@ static inline int arch_read_trylock(arch_rwlock_t *rw)
 {
 	unsigned long contended, res;
 
+	prefetchw(&rw->lock);
 	do {
 		__asm__ __volatile__(
 		"	ldrex	%0, [%2]\n"
@@ -354,7 +354,7 @@ static inline int arch_read_trylock(arch_rwlock_t *rw)
 }
 
 /* read_can_lock - would read_trylock() succeed? */
-#define arch_read_can_lock(x)		((x)->lock < 0x80000000)
+#define arch_read_can_lock(x)		(ACCESS_ONCE((x)->lock) < 0x80000000)
 
 #define arch_read_lock_flags(lock, flags) arch_read_lock(lock)
 #define arch_write_lock_flags(lock, flags) arch_write_lock(lock)

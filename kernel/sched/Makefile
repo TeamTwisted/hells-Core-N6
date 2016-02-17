@@ -3,6 +3,7 @@ CFLAGS_REMOVE_clock.o = -pg
 endif
 
 obj-y += core.o clock.o cputime.o idle_task.o fair.o rt.o stop_task.o idle.o
+obj-y += wait.o
 obj-$(CONFIG_SMP) += cpupri.o
 obj-$(CONFIG_SCHED_AUTOGROUP) += auto_group.o
 obj-$(CONFIG_SCHEDSTATS) += stats.o

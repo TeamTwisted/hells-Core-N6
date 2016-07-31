@@ -1,3 +1,5 @@
+CFLAGS_KERNEL := -Wno-misleading-indentation
+
 #
 # USB peripheral controller drivers
 #

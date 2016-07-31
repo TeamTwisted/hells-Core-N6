@@ -1,3 +1,5 @@
+CFLAGS_KERNEL := -Wno-misleading-indentation
+
 obj-y += io.o dma.o memory.o
 ifndef CONFIG_ARM_ARCH_TIMER
 obj-y += timer.o

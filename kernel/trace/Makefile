@@ -1,3 +1,4 @@
+CFLAGS_KERNEL := -Wno-misleading-indentation
 
 # Do not instrument the tracer itself:
 

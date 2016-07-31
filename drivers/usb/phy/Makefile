@@ -1,3 +1,5 @@
+CFLAGS_KERNEL := -Wno-misleading-indentation
+
 #
 # Makefile for physical layer USB drivers
 #

@@ -24,9 +24,6 @@
 bool fsync_enabled = true;
 module_param(fsync_enabled, bool, 0755);
 
-bool fsync_enabled = true;
-module_param(fsync_enabled, bool, 0755);
-
 #define VALID_FLAGS (SYNC_FILE_RANGE_WAIT_BEFORE|SYNC_FILE_RANGE_WRITE| \
 			SYNC_FILE_RANGE_WAIT_AFTER)
 
@@ -287,9 +284,6 @@ static int do_fsync(unsigned int fd, int datasync)
 #ifdef CONFIG_ASYNC_FSYNC
         struct fsync_work *fwork;
 #endif
-
-	if (!fsync_enabled)
-		return 0;
 
 	if (!fsync_enabled)
 		return 0;

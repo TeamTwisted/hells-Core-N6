@@ -381,6 +381,7 @@ KBUILD_CFLAGS 	:= -Wall -Wundef -Wstrict-prototypes -Wno-trigraphs \
 		   -Wno-format-security \
 		   -fno-delete-null-pointer-checks \
 		   -Wno-sizeof-pointer-memaccess \
+		   		   -mtune=cortex-a15 \
                    -Wno-unused-const-variable \
 		   --param l1-cache-size=16 --param l1-cache-line-size=16 --param l2-cache-size=2048 \
 		    $(KERNELFLAGS)

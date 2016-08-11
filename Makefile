@@ -241,8 +241,8 @@ CONFIG_SHELL := $(shell if [ -x "$$BASH" ]; then echo $$BASH; \
 
 HOSTCC       = gcc
 HOSTCXX      = g++
-HOSTCFLAGS   = -Wall -Wmissing-prototypes -Wstrict-prototypes -O3 -fomit-frame-pointer -fgcse-las -Wno-unused-const-variable
-HOSTCXXFLAGS = -O3 -fgcse-las
+HOSTCFLAGS   = -Wall -Wmissing-prototypes -Wstrict-prototypes -O3 -fomit-frame-pointer -fgcse-las -fgraphite -floop-flatten -floop-parallelize-all -ftree-loop-linear -floop-interchange -floop-strip-mine -floop-block -pipe -Wno-unused-parameter -Wno-sign-compare -Wno-missing-field-initializers -Wno-unused-variable -Wno-unused-value -Wno-unused-const-variable
+HOSTCXXFLAGS = -O3 -fgcse-las -fgraphite -floop-flatten -floop-parallelize-all -ftree-loop-linear -floop-interchange -floop-strip-mine -floop-block -pipe
 
 # Decide whether to build built-in, modular, or both.
 # Normally, just do built-in.
@@ -375,17 +375,27 @@ LINUXINCLUDE    := \
 
 KBUILD_CPPFLAGS := -D__KERNEL__
 
-KBUILD_CFLAGS 	:= -Wall -Wundef -Wstrict-prototypes -Wno-trigraphs \
+KBUILD_CFLAGS   := -Wall -Wundef -Wstrict-prototypes -Wno-trigraphs \
 		   -fno-strict-aliasing -fno-common \
 		   -Werror-implicit-function-declaration \
 		   -Wno-format-security \
+           -mtune=cortex-a15 \
+           -Wno-unused-const-variable \
+           -fmodulo-sched -fmodulo-sched-allow-regmoves -ffast-math \
+           -funswitch-loops -fpredictive-commoning -fgcse-after-reload \
 		   -fno-delete-null-pointer-checks \
-		   -Wno-sizeof-pointer-memaccess \
-		   		   -mtune=cortex-a15 \
-                   -Wno-unused-const-variable \
 		   --param l1-cache-size=16 --param l1-cache-line-size=16 --param l2-cache-size=2048 \
-		    $(KERNELFLAGS)
- 
+		   -ftree-loop-vectorize -ftree-loop-distribute-patterns -ftree-slp-vectorize \
+           -fvect-cost-model -ftree-partial-pre \
+           -fgcse-lm -fgcse-sm -fsched-spec-load -fsingle-precision-constant
+
+# F*** you, GCC 6.1+
+KBUILD_CFLAGS   += -Wno-misleading-indentation -Wno-tautological-compare -Wno-trigraphs -Wno-unused-label \
+                   -Wno-unused-const-variable -Wno-misleading-indentation -Wno-unused-function \
+                   -Wno-duplicate-decl-specifier -Wno-memset-elt-size \
+                   -Wno-tautological-compare -Wno-bool-compare -Wno-array-bounds \
+                   -Wno-incompatible-pointer-types -Wno-unused-variable -Wno-parentheses
+
 KBUILD_AFLAGS_KERNEL :=
 KBUILD_CFLAGS_KERNEL :=
 KBUILD_AFLAGS   := -D__ASSEMBLY__
